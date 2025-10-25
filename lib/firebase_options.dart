@@ -65,20 +65,20 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'YOUR_ANDROID_API_KEY',
-    appId: 'YOUR_ANDROID_APP_ID',
-    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    storageBucket: 'YOUR_STORAGE_BUCKET',
+    apiKey: 'AIzaSyDO3VU1ztmmFt6w-hetcxf2VhqBtNSQZeQ',
+    appId: '1:815552696051:android:fb5d26e4345d9fae64f186',
+    messagingSenderId: '815552696051',
+    projectId: 'luckyday-flutter',
+    storageBucket: 'luckyday-flutter.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'YOUR_IOS_API_KEY',
-    appId: 'YOUR_IOS_APP_ID',
-    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    storageBucket: 'YOUR_STORAGE_BUCKET',
-    iosBundleId: 'YOUR_IOS_BUNDLE_ID',
+    apiKey: 'AIzaSyDedIDs9wRP9CELhFVlw4s02ko2La72wTI',
+    appId: '1:815552696051:ios:8af59a7d1b29be7c64f186',
+    messagingSenderId: '815552696051',
+    projectId: 'luckyday-flutter',
+    storageBucket: 'luckyday-flutter.firebasestorage.app',
+    iosBundleId: 'com.example.blueberryTemplate',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(

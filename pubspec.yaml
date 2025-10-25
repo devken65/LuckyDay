@@ -22,6 +22,10 @@ dependencies:
 
   pedantic_mono: ^1.34.0
   http: ^1.5.0
+  just_audio: ^0.10.5
+  youtube_explode_dart: ^2.5.2
+  share_plus: ^12.0.1
+  marquee: ^2.3.0
 
 dev_dependencies:
   flutter_test:
@@ -33,3 +37,4 @@ flutter:
   assets:
     - assets/
     - assets/translations/
+    - assets/audio/
