@@ -8,6 +8,7 @@ class MusicInfo {
     this.audioUrl,
     this.albumName,
     this.releaseDate,
+    this.itunesUrl,
   });
 
   /// JSON에서 변환 (iTunes API)
@@ -19,6 +20,7 @@ class MusicInfo {
       audioUrl: json['previewUrl'] as String?,
       albumName: json['collectionName'] as String?,
       releaseDate: json['releaseDate'] as String?,
+      itunesUrl: json['trackViewUrl'] as String?,
     );
   }
 
@@ -40,6 +42,9 @@ class MusicInfo {
   /// 발매일
   final String? releaseDate;
 
+  /// iTunes 링크 URL
+  final String? itunesUrl;
+
   /// 복사
   MusicInfo copyWith({
     String? title,
@@ -48,6 +53,7 @@ class MusicInfo {
     String? audioUrl,
     String? albumName,
     String? releaseDate,
+    String? itunesUrl,
   }) {
     return MusicInfo(
       title: title ?? this.title,
@@ -56,6 +62,7 @@ class MusicInfo {
       audioUrl: audioUrl ?? this.audioUrl,
       albumName: albumName ?? this.albumName,
       releaseDate: releaseDate ?? this.releaseDate,
+      itunesUrl: itunesUrl ?? this.itunesUrl,
     );
   }
 }

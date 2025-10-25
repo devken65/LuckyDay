@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:marquee/marquee.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:template/features/music_player/controllers/music_player_controller.dart';
+import 'package:template/features/music_player/models/music_feedback.dart';
 import 'package:template/features/wishlist/controllers/wishlist_controller.dart';
 import 'package:template/features/wishlist/screens/wishlist_screen.dart';
 
@@ -21,12 +22,9 @@ class _MusicPlayerScreenState extends ConsumerState<MusicPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    // 화면 로드 시 음악 정보 가져오기
+    // 화면 로드 시 랜덤 음악 재생
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(musicPlayerProvider.notifier).loadMusicWithAlbumArt(
-            artist: 'Dua Lipa',
-            title: 'Levitating',
-          );
+      ref.read(musicPlayerProvider.notifier).next();
     });
   }
 
@@ -186,17 +184,53 @@ class _MusicPlayerScreenState extends ConsumerState<MusicPlayerScreen> {
                             ),
                           ),
                           const SizedBox(height: 10),
-                          Text(
-                            playerState.currentArtist,
-                            style: const TextStyle(
-                              fontFamily: 'Plus Jakarta Sans',
-                              fontWeight: FontWeight.w400,
-                              fontSize: 18,
-                              height: 1.5,
-                              color: Color(0xB32B2B2B),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          Row(
+                            children: [
+                              Text(
+                                playerState.currentArtist,
+                                style: const TextStyle(
+                                  fontFamily: 'Plus Jakarta Sans',
+                                  fontWeight: FontWeight.w400,
+                                  fontSize: 18,
+                                  height: 1.5,
+                                  color: Color(0xB32B2B2B),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (playerState.currentCategory != null) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFBFE6A8),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        playerState.currentCategory!.emoji,
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        playerState.currentCategory!.displayName,
+                                        style: const TextStyle(
+                                          fontFamily: 'Plus Jakarta Sans',
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 12,
+                                          color: Color(0xFF2B2B2B),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ],
                       ),
@@ -208,13 +242,11 @@ class _MusicPlayerScreenState extends ConsumerState<MusicPlayerScreen> {
                         Consumer(
                           builder: (context, ref, child) {
                             final wishlist = ref.watch(wishlistProvider);
-                            // final isInWishlist = wishlist.then(
-                            //   (item) =>
-                            //       item.title == playerState.currentSongTitle &&
-                            //       item.artist == playerState.currentArtist,
-                            // );
-                            if (wishlist.items.title == playerState.currenteSongtitle && wishilist.artist ==playerSTate.currentArtist) {
-isWisilist = true }
+                            final isInWishlist = wishlist.any(
+                              (item) =>
+                                  item.title == playerState.currentSongTitle &&
+                                  item.artist == playerState.currentArtist,
+                            );
 
                             return GestureDetector(
                               onTap: () {
@@ -231,7 +263,7 @@ isWisilist = true }
                                       .read(wishlistProvider.notifier)
                                       .removeFromWishlist(item.id);
                                 } else {
-                                  // 위시리스트에 추가
+                                  // 위시리스트에 추가 (카테고리 포함)
                                   ref
                                       .read(wishlistProvider.notifier)
                                       .addToWishlist(
@@ -239,6 +271,7 @@ isWisilist = true }
                                         artist: playerState.currentArtist,
                                         albumArtUrl: playerState.thumbnailUrl,
                                         previewUrl: playerState.videoUrl,
+                                        category: playerState.currentCategory,
                                       );
                                 }
                               },
@@ -253,11 +286,20 @@ isWisilist = true }
                         const SizedBox(width: 8),
                         GestureDetector(
                           onTap: () async {
-                            // 음악 정보 공유
-                            if (playerState.videoUrl != null) {
+                            // iTunes 링크로 음악 공유
+                            final itunesUrl = playerState.itunesUrl;
+                            if (itunesUrl != null) {
                               await SharePlus.instance.share(
                                 ShareParams(
-                                  text: '${playerState.currentSongTitle} - ${playerState.currentArtist}\n${playerState.videoUrl}',
+                                  text: '🎵 ${playerState.currentSongTitle} - ${playerState.currentArtist}\n\niTunes에서 들어보세요:\n$itunesUrl',
+                                  subject: '음악 공유',
+                                ),
+                              );
+                            } else {
+                              // iTunes 링크가 없으면 기본 정보 공유
+                              await SharePlus.instance.share(
+                                ShareParams(
+                                  text: '🎵 ${playerState.currentSongTitle} - ${playerState.currentArtist}',
                                   subject: '음악 공유',
                                 ),
                               );
@@ -281,59 +323,80 @@ isWisilist = true }
                     // 재생 바와 재생/일시정지 버튼
                     Row(
                       children: [
-                        GestureDetector(
-                          onTap: () {
-                            ref.read(musicPlayerProvider.notifier).togglePlayPause();
+                        Consumer(
+                          builder: (context, ref, child) {
+                            final isPlaying =
+                                ref.watch(musicPlayerProvider.select((s) => s.isPlaying));
+                            return GestureDetector(
+                              onTap: () {
+                                ref.read(musicPlayerProvider.notifier).togglePlayPause();
+                              },
+                              child: _buildPlayPauseButton(isPlaying),
+                            );
                           },
-                          child: _buildPlayPauseButton(playerState.isPlaying),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
-                          child: GestureDetector(
-                            onTapDown: (details) {
-                              final box = context.findRenderObject() as RenderBox?;
-                              if (box == null) {
-                                return;
-                              }
-                              final localPosition = details.localPosition;
-                              final progress = localPosition.dx / box.size.width;
-                              final position = playerState.duration * progress;
-                              ref.read(musicPlayerProvider.notifier).seek(position);
-                            },
-                            child: Container(
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFE5E7EB),
-                                borderRadius: BorderRadius.circular(9999),
-                              ),
-                              child: LayoutBuilder(
-                                builder: (context, constraints) {
-                                  return Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: Container(
-                                      width: constraints.maxWidth * playerState.progress,
-                                      height: 8,
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF2B2B2B),
-                                        borderRadius: BorderRadius.circular(9999),
-                                      ),
-                                    ),
-                                  );
+                          child: Consumer(
+                            builder: (context, ref, child) {
+                              final progress =
+                                  ref.watch(musicPlayerProvider.select((s) => s.progress));
+                              final duration =
+                                  ref.watch(musicPlayerProvider.select((s) => s.duration));
+
+                              return GestureDetector(
+                                onTapDown: (details) {
+                                  final box = context.findRenderObject() as RenderBox?;
+                                  if (box == null) {
+                                    return;
+                                  }
+                                  final localPosition = details.localPosition;
+                                  final tapProgress = localPosition.dx / box.size.width;
+                                  final position = duration * tapProgress;
+                                  ref.read(musicPlayerProvider.notifier).seek(position);
                                 },
-                              ),
-                            ),
+                                child: Container(
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE5E7EB),
+                                    borderRadius: BorderRadius.circular(9999),
+                                  ),
+                                  child: LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      return Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: Container(
+                                          width: constraints.maxWidth * progress,
+                                          height: 8,
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF2B2B2B),
+                                            borderRadius: BorderRadius.circular(9999),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ),
                         const SizedBox(width: 16),
-                        Text(
-                          playerState.formattedPosition,
-                          style: const TextStyle(
-                            fontFamily: 'Plus Jakarta Sans',
-                            fontWeight: FontWeight.w400,
-                            fontSize: 12,
-                            height: 1.33,
-                            color: Color(0x802B2B2B),
-                          ),
+                        Consumer(
+                          builder: (context, ref, child) {
+                            final formattedPosition = ref.watch(
+                                musicPlayerProvider.select((s) => s.formattedPosition));
+                            return Text(
+                              formattedPosition,
+                              style: const TextStyle(
+                                fontFamily: 'Plus Jakarta Sans',
+                                fontWeight: FontWeight.w400,
+                                fontSize: 12,
+                                height: 1.33,
+                                color: Color(0x802B2B2B),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -344,11 +407,23 @@ isWisilist = true }
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _buildEmojiButton('👍'),
+                        _buildEmojiButton(
+                          '👍',
+                          MusicFeedbackType.like,
+                          playerState.currentFeedback == MusicFeedbackType.like,
+                        ),
                         const SizedBox(width: 24),
-                        _buildEmojiButton('🤔'),
+                        _buildEmojiButton(
+                          '🤔',
+                          MusicFeedbackType.neutral,
+                          playerState.currentFeedback == MusicFeedbackType.neutral,
+                        ),
                         const SizedBox(width: 24),
-                        _buildEmojiButton('👎'),
+                        _buildEmojiButton(
+                          '👎',
+                          MusicFeedbackType.dislike,
+                          playerState.currentFeedback == MusicFeedbackType.dislike,
+                        ),
                       ],
                     ),
 
@@ -486,27 +561,43 @@ isWisilist = true }
     );
   }
 
-  Widget _buildEmojiButton(String emoji) {
-    return Container(
-      width: 64,
-      height: 64,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x12000000),
-            offset: Offset(0, 4),
-            blurRadius: 12,
-          ),
-        ],
-      ),
-      child: Center(
-        child: Text(
-          emoji,
-          style: const TextStyle(
-            fontSize: 30,
-            height: 1.2,
+  Widget _buildEmojiButton(
+    String emoji,
+    MusicFeedbackType feedbackType,
+    bool isSelected,
+  ) {
+    return GestureDetector(
+      onTap: () {
+        ref.read(musicPlayerProvider.notifier).setFeedback(feedbackType);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFBFE6A8) : Colors.white,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0x12000000),
+              offset: const Offset(0, 4),
+              blurRadius: isSelected ? 16 : 12,
+            ),
+          ],
+          border: isSelected
+              ? Border.all(
+                  color: const Color(0xFF2B2B2B),
+                  width: 2,
+                )
+              : null,
+        ),
+        child: Center(
+          child: Text(
+            emoji,
+            style: TextStyle(
+              fontSize: isSelected ? 34 : 30,
+              height: 1.2,
+            ),
           ),
         ),
       ),

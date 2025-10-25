@@ -3,72 +3,172 @@ import 'package:flutter/material.dart';
 /// Lucky Day 로고 위젯
 ///
 /// 네잎클로버 형태의 녹색 로고에 "Lucky Day!" 텍스트를 표시합니다.
-class LuckyDayLogo extends StatelessWidget {
+class LuckyDayLogo extends StatefulWidget {
   /// [LuckyDayLogo] 생성자
-  const LuckyDayLogo({super.key});
+  const LuckyDayLogo({super.key, this.onPressed});
+
+  /// 버튼 눌렀을 때 콜백
+  final VoidCallback? onPressed;
+
+  @override
+  State<LuckyDayLogo> createState() => _LuckyDayLogoState();
+}
+
+class _LuckyDayLogoState extends State<LuckyDayLogo>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _rotateAnimation;
+  bool _isPressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+
+    _scaleAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.0, end: 0.9)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 30,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.9, end: 1.1)
+            .chain(CurveTween(curve: Curves.elasticOut)),
+        weight: 70,
+      ),
+    ]).animate(_controller);
+
+    _rotateAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.0, end: -0.05)
+            .chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 25,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: -0.05, end: 0.05)
+            .chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.05, end: 0.0)
+            .chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 25,
+      ),
+    ]).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleTapDown(TapDownDetails details) {
+    setState(() {
+      _isPressed = true;
+    });
+  }
+
+  void _handleTapUp(TapUpDetails details) {
+    setState(() {
+      _isPressed = false;
+    });
+    _controller.forward(from: 0);
+    widget.onPressed?.call();
+  }
+
+  void _handleTapCancel() {
+    setState(() {
+      _isPressed = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 200,
-      height: 200,
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF9F1),
-        shape: BoxShape.circle,
-        boxShadow: [
-          // 외부 그림자 (네오모피즘 효과)
-          BoxShadow(
-            color: const Color(0xFFD9D4CE),
-            offset: const Offset(10, 10),
-            blurRadius: 20,
-          ),
-          BoxShadow(
-            color: Colors.white,
-            offset: const Offset(-10, -10),
-            blurRadius: 20,
-          ),
-        ],
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // 세잎클로버 디자인
-          CustomPaint(
-            size: const Size(160, 160),
-            painter: _CloverPainter(),
-          ),
-          // 텍스트
-          const Padding(
-            padding: EdgeInsets.only(top: 30),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'Lucky',
-                  style: TextStyle(
-                    fontFamily: 'Plus Jakarta Sans',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 28,
-                    height: 1.2,
-                    color: Color(0xFF2B2B2B),
-                  ),
-                  textAlign: TextAlign.center,
+    return GestureDetector(
+      onTapDown: _handleTapDown,
+      onTapUp: _handleTapUp,
+      onTapCancel: _handleTapCancel,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _isPressed ? 0.95 : _scaleAnimation.value,
+            child: Transform.rotate(
+              angle: _rotateAnimation.value,
+              child: Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF9F1),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    // 외부 그림자 (네오모피즘 효과) - 눌렀을 때 변화
+                    BoxShadow(
+                      color: const Color(0xFFD9D4CE),
+                      offset: _isPressed
+                          ? const Offset(5, 5)
+                          : const Offset(10, 10),
+                      blurRadius: _isPressed ? 15 : 20,
+                    ),
+                    BoxShadow(
+                      color: Colors.white,
+                      offset: _isPressed
+                          ? const Offset(-5, -5)
+                          : const Offset(-10, -10),
+                      blurRadius: _isPressed ? 15 : 20,
+                    ),
+                  ],
                 ),
-                Text(
-                  'Day!',
-                  style: TextStyle(
-                    fontFamily: 'Plus Jakarta Sans',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 28,
-                    height: 1.2,
-                    color: Color(0xFF2B2B2B),
-                  ),
-                  textAlign: TextAlign.center,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // 세잎클로버 디자인
+                    CustomPaint(
+                      size: const Size(160, 160),
+                      painter: _CloverPainter(),
+                    ),
+                    // 텍스트
+                    const Padding(
+                      padding: EdgeInsets.only(top: 30),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Lucky',
+                            style: TextStyle(
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontWeight: FontWeight.w700,
+                              fontSize: 28,
+                              height: 1.2,
+                              color: Color(0xFF2B2B2B),
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          Text(
+                            'Day!',
+                            style: TextStyle(
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontWeight: FontWeight.w700,
+                              fontSize: 28,
+                              height: 1.2,
+                              color: Color(0xFF2B2B2B),
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

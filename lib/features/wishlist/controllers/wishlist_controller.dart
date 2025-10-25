@@ -1,74 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:template/features/music_player/models/music_category.dart';
 import 'package:template/features/wishlist/models/wishlist_item.dart';
-
-/// 정렬 옵션
-enum WishlistSortOption {
-  /// 최근 추가순
-  recentlyAdded,
-
-  /// 제목순
-  title,
-
-  /// 아티스트순
-  artist,
-}
-
-/// 위시리스트 상태
-class WishlistState {
-  /// [WishlistState] 생성자
-  const WishlistState({
-    required this.items,
-    required this.sortOption,
-  });
-
-  /// 위시리스트 아이템 목록
-  final List<WishlistItem> items;
-
-  /// 정렬 옵션
-  final WishlistSortOption sortOption;
-
-  /// 복사
-  WishlistState copyWith({
-    List<WishlistItem>? items,
-    WishlistSortOption? sortOption,
-  }) {
-    return WishlistState(
-      items: items ?? this.items,
-      sortOption: sortOption ?? this.sortOption,
-    );
-  }
-
-  /// 정렬된 아이템 목록
-  List<WishlistItem> get sortedItems {
-    final itemsCopy = List<WishlistItem>.from(items);
-
-    switch (sortOption) {
-      case WishlistSortOption.recentlyAdded:
-        itemsCopy.sort((a, b) => b.addedAt.compareTo(a.addedAt));
-      case WishlistSortOption.title:
-        itemsCopy.sort((a, b) => a.title.compareTo(b.title));
-      case WishlistSortOption.artist:
-        itemsCopy.sort((a, b) => a.artist.compareTo(b.artist));
-    }
-
-    return itemsCopy;
-  }
-}
 
 /// 위시리스트 Provider
 final wishlistProvider =
-    NotifierProvider<WishlistController, WishlistState>(
+    NotifierProvider<WishlistController, List<WishlistItem>>(
   WishlistController.new,
 );
 
 /// 위시리스트 컨트롤러
-class WishlistController extends Notifier<WishlistState> {
+class WishlistController extends Notifier<List<WishlistItem>> {
   @override
-  WishlistState build() {
-    return const WishlistState(
-      items: [],
-      sortOption: WishlistSortOption.recentlyAdded,
-    );
+  List<WishlistItem> build() {
+    return [];
   }
 
   /// 위시리스트에 추가
@@ -77,6 +21,7 @@ class WishlistController extends Notifier<WishlistState> {
     required String artist,
     String? albumArtUrl,
     String? previewUrl,
+    MusicCategory? category,
   }) {
     final newItem = WishlistItem(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -85,34 +30,54 @@ class WishlistController extends Notifier<WishlistState> {
       albumArtUrl: albumArtUrl,
       previewUrl: previewUrl,
       addedAt: DateTime.now(),
+      category: category,
     );
 
-    state = state.copyWith(
-      items: [...state.items, newItem],
-    );
+    state = [...state, newItem];
   }
 
   /// 위시리스트에서 제거
   void removeFromWishlist(String id) {
-    state = state.copyWith(
-      items: state.items.where((item) => item.id != id).toList(),
-    );
+    state = state.where((item) => item.id != id).toList();
   }
 
   /// 위시리스트에 있는지 확인
   bool isInWishlist(String title, String artist) {
-    return state.items.any(
+    return state.any(
       (item) => item.title == title && item.artist == artist,
     );
   }
 
   /// 위시리스트 비우기
   void clearWishlist() {
-    state = state.copyWith(items: []);
+    state = [];
   }
 
-  /// 정렬 옵션 변경
-  void setSortOption(WishlistSortOption option) {
-    state = state.copyWith(sortOption: option);
+  /// 카테고리별 통계 (백분율)
+  Map<MusicCategory, double> getCategoryStatistics() {
+    if (state.isEmpty) {
+      return {};
+    }
+
+    // 카테고리별 곡 개수 계산
+    final categoryCounts = <MusicCategory, int>{};
+    var totalWithCategory = 0;
+
+    for (final item in state) {
+      if (item.category != null) {
+        categoryCounts[item.category!] =
+            (categoryCounts[item.category!] ?? 0) + 1;
+        totalWithCategory++;
+      }
+    }
+
+    // 백분율 계산
+    final categoryPercentages = <MusicCategory, double>{};
+    for (final entry in categoryCounts.entries) {
+      categoryPercentages[entry.key] =
+          (entry.value / totalWithCategory) * 100;
+    }
+
+    return categoryPercentages;
   }
 }

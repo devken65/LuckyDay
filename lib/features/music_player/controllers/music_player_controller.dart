@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
+import 'package:template/features/music_player/models/music_category.dart';
+import 'package:template/features/music_player/models/music_feedback.dart';
 import 'package:template/features/music_player/repositories/music_search_repository.dart';
 
 /// 음악 플레이어 상태
@@ -17,6 +19,9 @@ class MusicPlayerState {
     required this.currentArtist,
     this.thumbnailUrl,
     this.videoUrl,
+    this.currentFeedback,
+    this.currentCategory,
+    this.itunesUrl,
   });
 
   /// 재생 중 여부
@@ -40,6 +45,15 @@ class MusicPlayerState {
   /// YouTube 비디오 URL
   final String? videoUrl;
 
+  /// 현재 곡의 피드백
+  final MusicFeedbackType? currentFeedback;
+
+  /// 현재 곡의 카테고리
+  final MusicCategory? currentCategory;
+
+  /// iTunes 스토어 링크
+  final String? itunesUrl;
+
   /// 상태 복사
   MusicPlayerState copyWith({
     bool? isPlaying,
@@ -49,6 +63,9 @@ class MusicPlayerState {
     String? currentArtist,
     String? thumbnailUrl,
     String? videoUrl,
+    MusicFeedbackType? currentFeedback,
+    MusicCategory? currentCategory,
+    String? itunesUrl,
   }) {
     return MusicPlayerState(
       isPlaying: isPlaying ?? this.isPlaying,
@@ -58,6 +75,9 @@ class MusicPlayerState {
       currentArtist: currentArtist ?? this.currentArtist,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
       videoUrl: videoUrl ?? this.videoUrl,
+      currentFeedback: currentFeedback ?? this.currentFeedback,
+      currentCategory: currentCategory ?? this.currentCategory,
+      itunesUrl: itunesUrl ?? this.itunesUrl,
     );
   }
 
@@ -88,27 +108,52 @@ class MusicPlayerController extends Notifier<MusicPlayerState> {
   late AudioPlayer _audioPlayer;
   final _musicSearchRepository = MusicSearchRepository();
 
-  /// 랜덤 재생 목록 (아티스트, 곡 제목)
-  final List<Map<String, String>> _randomPlaylist = [
-    {'artist': 'Dua Lipa', 'title': 'Levitating'},
-    {'artist': 'The Weeknd', 'title': 'Blinding Lights'},
-    {'artist': 'Bruno Mars', 'title': 'Just The Way You Are'},
-    {'artist': 'Ed Sheeran', 'title': 'Shape of You'},
-    {'artist': 'Ariana Grande', 'title': 'thank u, next'},
-    {'artist': 'Taylor Swift', 'title': 'Shake It Off'},
-    {'artist': 'Billie Eilish', 'title': 'bad guy'},
-    {'artist': 'Post Malone', 'title': 'Circles'},
-    {'artist': 'Olivia Rodrigo', 'title': 'good 4 u'},
-    {'artist': 'Justin Bieber', 'title': 'Peaches'},
+  /// 사용자 피드백 히스토리
+  final List<MusicFeedback> _feedbackHistory = [];
+
+  /// 재생된 곡 히스토리 (중복 방지용)
+  final Set<String> _playedSongs = {};
+
+  /// 음악 재생 목록 (아티스트, 곡 제목, 카테고리)
+  final _musicPlaylist = [
+    {'artist': 'Dua Lipa', 'title': 'Levitating', 'category': MusicCategory.pop},
+    {'artist': 'The Weeknd', 'title': 'Blinding Lights', 'category': MusicCategory.pop},
+    {'artist': 'Bruno Mars', 'title': 'Just The Way You Are', 'category': MusicCategory.pop},
+    {'artist': 'Ed Sheeran', 'title': 'Shape of You', 'category': MusicCategory.pop},
+    {'artist': 'Ariana Grande', 'title': 'thank u, next', 'category': MusicCategory.pop},
+    {'artist': 'Taylor Swift', 'title': 'Shake It Off', 'category': MusicCategory.pop},
+    {'artist': 'Dua Lipa', 'title': 'Don\'t Start Now', 'category': MusicCategory.dance},
+    {'artist': 'Calvin Harris', 'title': 'Summer', 'category': MusicCategory.dance},
+    {'artist': 'The Chainsmokers', 'title': 'Closer', 'category': MusicCategory.dance},
+    {'artist': 'Billie Eilish', 'title': 'bad guy', 'category': MusicCategory.indie},
+    {'artist': 'Lauv', 'title': 'I Like Me Better', 'category': MusicCategory.indie},
+    {'artist': 'LANY', 'title': 'ILYSB', 'category': MusicCategory.indie},
+    {'artist': 'The Weeknd', 'title': 'Die For You', 'category': MusicCategory.rnb},
+    {'artist': 'SZA', 'title': 'Kill Bill', 'category': MusicCategory.rnb},
+    {'artist': 'Post Malone', 'title': 'Circles', 'category': MusicCategory.rnb},
+    {'artist': 'Olivia Rodrigo', 'title': 'good 4 u', 'category': MusicCategory.rock},
+    {'artist': 'Imagine Dragons', 'title': 'Believer', 'category': MusicCategory.rock},
+    {'artist': 'Coldplay', 'title': 'Fix You', 'category': MusicCategory.ballad},
+    {'artist': 'Adele', 'title': 'Someone Like You', 'category': MusicCategory.ballad},
+    {'artist': 'Sam Smith', 'title': 'Stay With Me', 'category': MusicCategory.ballad},
   ];
 
   @override
   MusicPlayerState build() {
     _audioPlayer = AudioPlayer();
 
-    // 재생 위치 스트림 구독
+    // 오디오 설정 최적화 (끊김 방지)
+    _audioPlayer.setVolume(1.0);
+
+    // 재생 위치 스트림 구독 (250ms 간격으로 throttle하여 성능 개선)
+    Duration? lastPosition;
     _audioPlayer.positionStream.listen((position) {
-      state = state.copyWith(position: position);
+      // 250ms 이상 차이날 때만 업데이트 (UI 렌더링 최적화)
+      if (lastPosition == null ||
+          (position - lastPosition!).inMilliseconds.abs() >= 250) {
+        lastPosition = position;
+        state = state.copyWith(position: position);
+      }
     });
 
     // 재생 시간 스트림 구독
@@ -231,12 +276,13 @@ class MusicPlayerController extends Notifier<MusicPlayerState> {
       // 2. 30초 미리듣기 오디오 로드
       await _audioPlayer.setUrl(musicInfo.audioUrl!);
 
-      // 3. 상태 업데이트
+      // 3. 상태 업데이트 (iTunes URL 포함)
       state = state.copyWith(
         currentSongTitle: musicInfo.title,
         currentArtist: musicInfo.artist,
         thumbnailUrl: musicInfo.albumArtUrl,
         videoUrl: musicInfo.audioUrl,
+        itunesUrl: musicInfo.itunesUrl,
       );
 
       debugPrint('✅ 상태 업데이트 완료 - thumbnailUrl: ${state.thumbnailUrl}');
@@ -276,21 +322,34 @@ class MusicPlayerController extends Notifier<MusicPlayerState> {
     await _audioPlayer.seek(Duration.zero);
   }
 
-  /// 다음 곡 (랜덤)
+  /// 다음 곡 (피드백 기반 스마트 추천)
   Future<void> next() async {
-    debugPrint('🎲 다음 곡 재생 (랜덤)');
+    debugPrint('🎲 다음 곡 재생 (카테고리 기반 스마트 추천)');
 
-    // 랜덤 인덱스 선택
-    final random = Random();
-    final randomIndex = random.nextInt(_randomPlaylist.length);
-    final randomSong = _randomPlaylist[randomIndex];
+    // 피드백 기반으로 다음 곡 선택
+    final nextSong = _getNextSongWithFeedback();
 
-    debugPrint('🎲 선택된 곡: ${randomSong['artist']} - ${randomSong['title']}');
+    final artist = nextSong['artist']! as String;
+    final title = nextSong['title']! as String;
+    final category = nextSong['category']! as MusicCategory;
 
-    // 랜덤 곡 로드
+    debugPrint('🎲 선택된 곡: $artist - $title [${category.displayName}]');
+
+    // 재생 히스토리에 추가
+    final songKey = '$artist-$title';
+    _playedSongs.add(songKey);
+    debugPrint('📝 재생 히스토리: ${_playedSongs.length}/${_musicPlaylist.length}');
+
+    // 곡 로드
     await loadMusicWithAlbumArt(
-      artist: randomSong['artist']!,
-      title: randomSong['title']!,
+      artist: artist,
+      title: title,
+    );
+
+    // 새 곡이므로 피드백 초기화, 카테고리 설정
+    state = state.copyWith(
+      currentFeedback: null,
+      currentCategory: category,
     );
 
     // 자동 재생
@@ -300,5 +359,104 @@ class MusicPlayerController extends Notifier<MusicPlayerState> {
   /// 정지
   Future<void> stop() async {
     await _audioPlayer.stop();
+  }
+
+  /// 현재 곡에 대한 피드백 설정
+  void setFeedback(MusicFeedbackType feedbackType) {
+    // 피드백 히스토리에 추가
+    final feedback = MusicFeedback(
+      artist: state.currentArtist,
+      title: state.currentSongTitle,
+      feedbackType: feedbackType,
+      timestamp: DateTime.now(),
+    );
+    _feedbackHistory.add(feedback);
+
+    // 상태 업데이트
+    state = state.copyWith(currentFeedback: feedbackType);
+
+    debugPrint(
+      '👍 피드백 저장: ${feedback.artist} - ${feedback.title} = ${feedbackType.name}',
+    );
+  }
+
+  /// 다음 곡 선택 시 카테고리 기반 스마트 추천
+  Map<String, dynamic> _getNextSongWithFeedback() {
+    // 1. 재생하지 않은 곡만 필터링
+    final unplayedSongs = _musicPlaylist.where((song) {
+      final songKey = '${song['artist']}-${song['title']}';
+      return !_playedSongs.contains(songKey);
+    }).toList();
+
+    // 모든 곡을 재생했으면 히스토리 초기화하고 다시 시작
+    if (unplayedSongs.isEmpty) {
+      debugPrint('🔄 모든 곡 재생 완료! 히스토리 초기화');
+      _playedSongs.clear();
+      return _getNextSongWithFeedback();
+    }
+
+    // 2. 피드백이 없으면 랜덤 선택
+    if (_feedbackHistory.isEmpty) {
+      final randomSong = unplayedSongs[Random().nextInt(unplayedSongs.length)];
+      return randomSong;
+    }
+
+    // 3. 카테고리별 피드백 점수 계산
+    final categoryScores = <MusicCategory, int>{};
+    for (final feedback in _feedbackHistory) {
+      // 피드백을 남긴 곡의 카테고리 찾기
+      Map<String, dynamic>? feedbackSong;
+      try {
+        feedbackSong = _musicPlaylist.firstWhere(
+          (song) =>
+              song['artist'] == feedback.artist &&
+              song['title'] == feedback.title,
+        );
+      } catch (e) {
+        // 곡을 찾지 못한 경우 스킵
+        continue;
+      }
+
+      final category = feedbackSong['category']! as MusicCategory;
+      categoryScores[category] = categoryScores[category] ?? 0;
+
+      // 좋아요: +3점, 보통: +1점, 싫어요: -2점
+      switch (feedback.feedbackType) {
+        case MusicFeedbackType.like:
+          categoryScores[category] = categoryScores[category]! + 3;
+        case MusicFeedbackType.neutral:
+          categoryScores[category] = categoryScores[category]! + 1;
+        case MusicFeedbackType.dislike:
+          categoryScores[category] = categoryScores[category]! - 2;
+      }
+    }
+
+    debugPrint('📊 카테고리 점수: $categoryScores');
+
+    // 4. 점수 기반 가중치 추천
+    // 점수가 높은 카테고리는 더 자주 추천
+    final weightedSongs = <Map<String, dynamic>>[];
+    for (final song in unplayedSongs) {
+      final category = song['category'] as MusicCategory;
+      final score = categoryScores[category] ?? 0;
+
+      // 점수가 음수인 카테고리는 20% 확률로만 추가
+      if (score < 0 && Random().nextDouble() > 0.2) {
+        continue;
+      }
+
+      // 점수에 비례해서 목록에 추가 (점수가 높을수록 선택 확률 증가)
+      final weight = (score > 0 ? score : 1).clamp(1, 5);
+      for (var i = 0; i < weight; i++) {
+        weightedSongs.add(song);
+      }
+    }
+
+    // 가중치 목록이 비어있으면 재생하지 않은 곡에서 랜덤 선택
+    if (weightedSongs.isEmpty) {
+      return unplayedSongs[Random().nextInt(unplayedSongs.length)];
+    }
+
+    return weightedSongs[Random().nextInt(weightedSongs.length)];
   }
 }
